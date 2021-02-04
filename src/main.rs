@@ -1,43 +1,19 @@
+use std::f64::consts::TAU;
 use std::sync::Arc;
 
 use glium::{glutin, Surface};
 
+pub mod shaders;
 pub mod space;
 
 use space::{rtx, Line, Vec2};
 
-const VERTEX_SHADER: &str = r#"
-    #version 140
-    in vec2 position;
-    void main() {
-        gl_Position = vec4(position, 0.0, 1.0);
-    }
-"#;
-
-const FRAGMENT_SHADER: &str = r#"
-    #version 140
-    out vec4 color;
-    void main() {
-        color = vec4(1.0, 0.0, 0.0, 1.0);
-    }
-"#;
-
-const OUTLINE_SHADER: &str = r#"
-    #version 140
-    out vec4 color;
-    void main() {
-        color = vec4(0.5, 0.5, 0.5, 1.0);
-    }
-"#;
-
 const FRAME_DELAY: std::time::Duration = std::time::Duration::from_millis(24);
-
-const TPI: f64 = 6.28318530718;
 
 const RAY_GROUP_COUNT: usize = 8;
 const RAY_GROUP_SIZE: usize = 4;
 
-const GROUP_MUL: f64 = TPI / (RAY_GROUP_COUNT as f64);
+const GROUP_MUL: f64 = TAU / (RAY_GROUP_COUNT as f64);
 const RAY_MUL: f64 = GROUP_MUL / (RAY_GROUP_SIZE as f64);
 
 const RAY_LEN: f64 = 0.01;
@@ -68,11 +44,21 @@ fn main() {
     let display =
         glium::Display::new(wb, cb, &event_loop).expect("Failed to create a graphics window");
 
-    let outline_program =
-        glium::Program::from_source(&display, VERTEX_SHADER, OUTLINE_SHADER, None).unwrap();
+    let outline_program = glium::Program::from_source(
+        &display,
+        shaders::outline::VERTEX,
+        shaders::outline::FRAGMENT,
+        shaders::outline::GEOMETRY,
+    )
+    .unwrap();
 
-    let fragment_program =
-        glium::Program::from_source(&display, VERTEX_SHADER, FRAGMENT_SHADER, None).unwrap();
+    let ray_program = glium::Program::from_source(
+        &display,
+        shaders::ray::VERTEX,
+        shaders::ray::FRAGMENT,
+        shaders::ray::GEOMETRY,
+    )
+    .unwrap();
 
     // character
     let pos = Vec2 { x: 0.0, y: 0.0 };
@@ -169,7 +155,7 @@ fn main() {
                 .draw(
                     &vbuffer,
                     &glium::index::NoIndices(glium::index::PrimitiveType::TrianglesList),
-                    &fragment_program,
+                    &ray_program,
                     &glium::uniforms::EmptyUniforms,
                     &Default::default(),
                 )
