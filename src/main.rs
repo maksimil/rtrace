@@ -1,10 +1,13 @@
-use std::f64::consts::TAU;
+use std::f32::consts::TAU;
 use std::sync::Arc;
 
 use glium::{glutin, Surface};
 
 pub mod shaders;
 pub mod space;
+pub mod vertex;
+
+use vertex::Vertex;
 
 use space::{rtx, Line, Vec2};
 
@@ -13,20 +16,12 @@ const FRAME_DELAY: std::time::Duration = std::time::Duration::from_millis(24);
 const RAY_GROUP_COUNT: usize = 8;
 const RAY_GROUP_SIZE: usize = 4;
 
-const GROUP_MUL: f64 = TAU / (RAY_GROUP_COUNT as f64);
-const RAY_MUL: f64 = GROUP_MUL / (RAY_GROUP_SIZE as f64);
+const GROUP_MUL: f32 = TAU / (RAY_GROUP_COUNT as f32);
+const RAY_MUL: f32 = GROUP_MUL / (RAY_GROUP_SIZE as f32);
 
-const RAY_LEN: f64 = 0.01;
+const RAY_LEN: f32 = 0.01;
 
-const MAX_DIST: f64 = 2.0;
-
-// vertex declaration
-#[derive(Debug, Copy, Clone)]
-struct Vertex {
-    position: [f64; 2],
-}
-
-glium::implement_vertex!(Vertex, position);
+const MAX_DIST: f32 = 2.0;
 
 fn main() {
     // shapes
@@ -92,13 +87,13 @@ fn main() {
         {
             let pts = (0..RAY_GROUP_COUNT)
                 .map(|group| {
-                    let group = group as f64;
+                    let group = group as f32;
                     let barriers = barriers.clone();
 
                     std::thread::spawn(move || {
                         (0..RAY_GROUP_SIZE)
                             .map(|ray| {
-                                let ray = ray as f64;
+                                let ray = ray as f32;
 
                                 let phi1 = GROUP_MUL * group + RAY_MUL * ray;
                                 let phi2 = GROUP_MUL * group + RAY_MUL * (ray + 1.0);

@@ -2,12 +2,12 @@ use std::ops::{Add, Mul, Sub};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Vec2 {
-    pub x: f64,
-    pub y: f64,
+    pub x: f32,
+    pub y: f32,
 }
 
 impl Vec2 {
-    pub fn abs(&self) -> f64 {
+    pub fn abs(&self) -> f32 {
         return (self.x * self.x + self.y * self.y).sqrt();
     }
 }
@@ -34,7 +34,7 @@ impl Sub<Vec2> for Vec2 {
     }
 }
 
-impl Mul<Vec2> for f64 {
+impl Mul<Vec2> for f32 {
     type Output = Vec2;
 
     fn mul(self, rhs: Vec2) -> Self::Output {
@@ -49,12 +49,12 @@ impl Mul<Vec2> for f64 {
 pub struct Line(pub Vec2, pub Vec2);
 
 impl Line {
-    pub fn len(&self) -> f64 {
+    pub fn len(&self) -> f32 {
         (self.0 - self.1).abs()
     }
 }
 
-pub fn intersect(arrow: &Line, line: &Line) -> Option<f64> {
+pub fn intersect(arrow: &Line, line: &Line) -> Option<f32> {
     let (a, b) = (line.0 - arrow.0, line.1 - arrow.0);
     let v = arrow.1 - arrow.0;
 
@@ -74,7 +74,7 @@ pub fn intersect(arrow: &Line, line: &Line) -> Option<f64> {
     }
 }
 
-pub fn barr_check(arrow: &Line, barriers: &Vec<Line>) -> Option<f64> {
+pub fn barr_check(arrow: &Line, barriers: &Vec<Line>) -> Option<f32> {
     barriers
         .iter()
         .filter_map(|barr| intersect(arrow, barr))
@@ -90,15 +90,12 @@ pub fn barr_check(arrow: &Line, barriers: &Vec<Line>) -> Option<f64> {
         })
 }
 
-pub fn rtx(mut arrow: Line, barriers: &Vec<Line>, max_dist: f64) -> f64 {
+pub fn rtx(mut arrow: Line, barriers: &Vec<Line>, max_dist: f32) -> f32 {
     let mut dist = 0.0;
     let mut check = barr_check(&arrow, barriers);
     while check.is_none() && dist < max_dist {
         dist += arrow.len();
-        arrow = Line(
-            arrow.1,
-            2.0 * arrow.1 - arrow.0,
-        );
+        arrow = Line(arrow.1, 2.0 * arrow.1 - arrow.0);
         check = barr_check(&arrow, barriers);
     }
     check.map_or(max_dist, |add| dist + add)
