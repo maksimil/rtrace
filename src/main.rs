@@ -1,5 +1,6 @@
 use std::f32::consts::TAU;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
+use std::time::Instant;
 
 use glium::{glutin, Surface};
 
@@ -7,17 +8,18 @@ pub mod shaders;
 pub mod space;
 pub mod vertex;
 
-use vertex::Vertex;
+use vertex::{RayVertex, Vertex};
 
 use space::{rtx, Line, Vec2};
 
 const FRAME_DELAY: std::time::Duration = std::time::Duration::from_millis(24);
 
-const RAY_GROUP_COUNT: usize = 8;
+const RAY_GROUP_COUNT: usize = 16;
 const RAY_GROUP_SIZE: usize = 4;
 
-const GROUP_MUL: f32 = TAU / (RAY_GROUP_COUNT as f32);
-const RAY_MUL: f32 = GROUP_MUL / (RAY_GROUP_SIZE as f32);
+const RAY_COUNT: usize = RAY_GROUP_COUNT * RAY_GROUP_SIZE;
+
+const DP: f32 = TAU / (RAY_COUNT as f32);
 
 const RAY_LEN: f32 = 0.01;
 
@@ -58,6 +60,19 @@ fn main() {
     // character
     let pos = Vec2 { x: 0.0, y: 0.0 };
 
+    // ray data buffer
+    let ray_data = Arc::new(RwLock::new(
+        (0..RAY_COUNT)
+            .map(|i| {
+                let p = DP * (i as f32);
+                RayVertex {
+                    ray: [p.cos(), p.sin()],
+                    rad: 1.0,
+                }
+            })
+            .collect::<Vec<_>>(),
+    ));
+
     // running event loop
     event_loop.run(move |event, _, control_flow| {
         let next_frame_time = std::time::Instant::now() + FRAME_DELAY;
@@ -85,71 +100,51 @@ fn main() {
 
         // rtx render
         {
-            let pts = (0..RAY_GROUP_COUNT)
+            let start = Instant::now();
+            let threads = (0..RAY_GROUP_COUNT)
                 .map(|group| {
-                    let group = group as f32;
                     let barriers = barriers.clone();
+                    let ray_data = ray_data.clone();
 
                     std::thread::spawn(move || {
                         (0..RAY_GROUP_SIZE)
                             .map(|ray| {
-                                let ray = ray as f32;
+                                let idx = group * RAY_GROUP_SIZE + ray;
+                                let ray = {
+                                    let ray_data = ray_data.read().unwrap();
 
-                                let phi1 = GROUP_MUL * group + RAY_MUL * ray;
-                                let phi2 = GROUP_MUL * group + RAY_MUL * (ray + 1.0);
-
-                                let phi1cos = phi1.cos();
-                                let phi1sin = phi1.sin();
-                                let phi2cos = phi2.cos();
-                                let phi2sin = phi2.sin();
-
-                                let ray1 = Vec2 {
-                                    x: RAY_LEN * phi1cos,
-                                    y: RAY_LEN * phi1sin,
+                                    Vec2 {
+                                        x: RAY_LEN * ray_data[idx].ray[0],
+                                        y: RAY_LEN * ray_data[idx].ray[1],
+                                    }
                                 };
 
-                                let ray2 = Vec2 {
-                                    x: RAY_LEN * phi2cos,
-                                    y: RAY_LEN * phi2sin,
-                                };
-
-                                let ray1len = rtx(Line(pos, pos + ray1), &barriers, MAX_DIST);
-                                let ray2len = rtx(Line(pos, pos + ray2), &barriers, MAX_DIST);
-
-                                (
-                                    Vertex {
-                                        position: [ray1len * phi1cos, ray1len * phi1sin],
-                                    },
-                                    Vertex {
-                                        position: [ray2len * phi2cos, ray2len * phi2sin],
-                                    },
-                                    Vertex {
-                                        position: [0.0, 0.0],
-                                    },
-                                )
+                                let raylen = rtx(Line(pos, pos + ray), &barriers, MAX_DIST);
+                                (idx, raylen)
                             })
-                            .fold(Vec::new(), |mut acc, (a, b, c)| {
-                                acc.push(a);
-                                acc.push(b);
-                                acc.push(c);
-                                acc
-                            })
+                            .collect::<Vec<_>>()
                     })
                 })
-                .collect::<Vec<_>>();
-
-            let pts = pts
+                .collect::<Vec<_>>()
                 .into_iter()
-                .map(|vec| vec.join().unwrap())
-                .flatten()
+                .map(|thread| thread.join().unwrap())
                 .collect::<Vec<_>>();
 
-            let vbuffer = glium::VertexBuffer::new(&display, &pts).unwrap();
+            let mut ray_data = ray_data.write().unwrap();
+            for thread in threads {
+                for (idx, rad) in thread {
+                    ray_data[idx].rad = rad;
+                }
+            }
+
+            println!("Elapsed: {}ms", start.elapsed().as_millis());
+
+            let vbuffer = glium::VertexBuffer::new(&display, &ray_data).unwrap();
 
             target
                 .draw(
                     &vbuffer,
-                    &glium::index::NoIndices(glium::index::PrimitiveType::TrianglesList),
+                    &glium::index::NoIndices(glium::index::PrimitiveType::LineStrip),
                     &ray_program,
                     &glium::uniforms::EmptyUniforms,
                     &Default::default(),
