@@ -15,7 +15,7 @@ use space::{rtx, Line, Vec2};
 const FRAME_DELAY: std::time::Duration = std::time::Duration::from_millis(24);
 
 const RAY_GROUP_COUNT: usize = 16;
-const RAY_GROUP_SIZE: usize = 4;
+const RAY_GROUP_SIZE: usize = 16;
 
 const RAY_COUNT: usize = RAY_GROUP_COUNT * RAY_GROUP_SIZE;
 
@@ -100,7 +100,6 @@ fn main() {
 
         // rtx render
         {
-            let start = Instant::now();
             let threads = (0..RAY_GROUP_COUNT)
                 .map(|group| {
                     let barriers = barriers.clone();
@@ -137,14 +136,12 @@ fn main() {
                 }
             }
 
-            println!("Elapsed: {}ms", start.elapsed().as_millis());
-
             let vbuffer = glium::VertexBuffer::new(&display, &ray_data).unwrap();
 
             target
                 .draw(
                     &vbuffer,
-                    &glium::index::NoIndices(glium::index::PrimitiveType::LineStrip),
+                    &glium::index::NoIndices(glium::index::PrimitiveType::LineLoop),
                     &ray_program,
                     &glium::uniforms::EmptyUniforms,
                     &Default::default(),

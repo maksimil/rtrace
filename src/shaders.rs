@@ -23,5 +23,5 @@ macro_rules! declare_shaders {
     };
 }
 
-declare_shaders!(ray);
+declare_shaders!(ray + geometry);
 declare_shaders!(outline);
